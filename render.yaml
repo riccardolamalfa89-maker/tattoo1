@@ -1,4 +1,8 @@
-# render.yaml — Blueprint CORRETTO (fix Redis ipAllowList + no fromService.url)
+# render.yaml — Blueprint definitivo (fix3) per Render Free
+# - Redis con ipAllowList: []
+# - API patchata per usare PORT dinamica
+# - Web avviato su $PORT
+# - NEXT_PUBLIC_API_URL come placeholder (da aggiornare post-deploy con URL dell'API + '/v1')
 
 databases:
   - name: tattoopro-db
@@ -14,8 +18,9 @@ services:
     buildCommand: |
       npm ci || npm install
       npx prisma generate || true
-      npm run build || npx nest build
+      npm run build || npx nest build || npx tsc
     startCommand: |
+      node -e "const fs=require('fs');const cand=['dist/main.js','dist/src/main.js'];for(const f of cand){if(fs.existsSync(f)){let s=fs.readFileSync(f,'utf8');const patched=s.replace(/listen\(\s*3000\s*\)/g,'listen(process.env.PORT||3000)');if(s!==patched){fs.writeFileSync(f,patched);console.log('Patched PORT in',f);} } }"
       npx prisma migrate deploy || true
       node dist/main.js || node dist/src/main.js
     envVars:
@@ -33,11 +38,11 @@ services:
       - key: NODE_ENV
         value: production
 
-  # ── Redis (FREE) — ipAllowList richiesto da Render
+  # ── Redis (FREE)
   - type: redis
     name: tattoopro-redis
     plan: free
-    ipAllowList: []   # nessun accesso esterno; solo interno dai servizi Render
+    ipAllowList: []  # solo accesso interno dai servizi Render
 
   # ── Web (Next.js)
   - type: web
@@ -49,11 +54,11 @@ services:
       npm ci || npm install
       npm run build || npx next build
     startCommand: |
-      npm run start || npx next start -p 3000
+      npx next start -p $PORT
     envVars:
       - key: NEXT_PUBLIC_WORKSPACE_ID
         value: ws_demo
-      # ⚠️ Dopo il primo deploy: sostituisci questo valore con l'URL pubblico della tua API + '/v1'
+      # Post-deploy: sostituisci con l'URL pubblico reale dell'API + '/v1'
       - key: NEXT_PUBLIC_API_URL
         value: https://REPLACE_WITH_YOUR_API_URL/v1
       - key: NODE_ENV
