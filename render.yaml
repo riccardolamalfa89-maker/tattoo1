@@ -1,0 +1,62 @@
+# render.yaml — Blueprint CORRETTO (usa rootDir) per Render Free
+
+databases:
+  - name: tattoopro-db
+    plan: free
+
+services:
+  # ── API (NestJS)
+  - type: web
+    name: tattoopro-api
+    env: node
+    plan: free
+    rootDir: api
+    buildCommand: |
+      npm ci || npm install
+      npx prisma generate || true
+      npm run build || npx nest build
+    startCommand: |
+      npx prisma migrate deploy || true
+      node dist/main.js || node dist/src/main.js
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tattoopro-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: tattoopro-redis
+          type: redis
+          property: connectionString
+      - key: JWT_SECRET
+        value: supersecret
+      - key: NODE_ENV
+        value: production
+
+  # ── Redis (FREE)
+  - type: redis
+    name: tattoopro-redis
+    plan: free
+
+  # ── Web (Next.js)
+  - type: web
+    name: tattoopro-web
+    env: node
+    plan: free
+    rootDir: web
+    buildCommand: |
+      npm ci || npm install
+      npm run build || npx next build
+    startCommand: |
+      npm run start || npx next start -p 3000
+    envVars:
+      - key: NEXT_PUBLIC_WORKSPACE_ID
+        value: ws_demo
+      # Suggerito: patch nel codice per aggiungere '/v1' se manca (vedi README)
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          name: tattoopro-api
+          type: web
+          property: url
+      - key: NODE_ENV
+        value: production
